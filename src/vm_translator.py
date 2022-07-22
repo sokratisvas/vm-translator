@@ -1,11 +1,46 @@
-segments = {
+segment_mapping = {
     'local': 'LCL', 'argument': 'ARG', 'this': 'THIS', 'that': 'THAT',
-    'static': '16', 'temp': '5', 'pointer': ['THIS', 'THAT']
+    'temp': '5', 'pointer': ['THIS', 'THAT']
 }
+
+def push_variable(segment, address):
+    if segment in ['local', 'argument', 'this', 'that']:
+        return ['@' + str(address), 'D=A', '@' + segment_mapping[segment],
+                'D=D+M', '@addr', 'M=D', 'A=M', 'D=M', '@SP', 'A=M', 
+                'M=D', '@SP', 'M=M+1']
+    elif segment == 'temp':
+        return ['@' + str(address), 'D=A', '@5', 'D=D+A', 
+                'A=D', 'D=M', '@SP', 'A=M', 'M=D', '@SP',
+                'M=M+1']
+    elif segment == 'constant':
+        return ['@' + str(address), 'D=A', '@SP',
+                'A=M', 'M=D', '@SP', 'M=M+1']
+    elif segment == 'static':
+        return ['@STC.' + str(address), 'D=M', '@SP', 'A=M',
+                'M=D', '@SP', 'M=M+1']
+    elif segment == 'pointer':
+        return ['@' + segment_mapping[segment][int(address)], 'D=M', 
+                '@SP', 'A=M', 'M=D', '@SP', 'M=M+1']
+
+def pop_variable(segment, address):
+    if segment in ['local', 'argument', 'this', 'that']:
+        return ['@' + str(address), 'D=A', '@' + segment_mapping[segment],
+                'D=D+M', '@addr', 'M=D', '@SP', 'M=M-1', 
+                'A=M',  'D=M', '@addr', 'A=M', 'M=D']
+    elif segment == 'temp':
+        return ['@' + str(address), 'D=A', '@5', 'D=D+A', 
+                '@addr', 'M=D', '@SP', 'M=M-1', 'A=M', 'D=M',
+                '@addr', 'A=M', 'M=D']
+    elif segment == 'static':
+        return ['@SP', 'M=M-1', 'A=M', 'D=M', 
+                '@STC.' + str(address), 'M=D']
+    elif segment == 'pointer':
+        return ['@SP', 'M=M-1', 'A=M', 'D=M', 
+                '@' + segment_mapping[segment][int(address)], 'M=D']
 
 def push_constant(constant):
     return ['@' + str(constant), 'D=A', '@SP',
-                    'A=M', 'M=D', '@SP', 'M=M+1']
+            'A=M', 'M=D', '@SP', 'M=M+1']
 
 def arithmetic_command(token, cnt):
     if token == 'add':
@@ -59,7 +94,10 @@ def tokenize(filename):
     with open(filepath, mode = 'w', encoding = "utf-8") as f:
         for token in tokens:
             if len(token) == 3:
-                assembly = push_constant(token[2])
+                if token[0] == 'push':
+                    assembly = push_variable(token[1], token[2])
+                elif token[0] == 'pop':
+                    assembly = pop_variable(token[1], token[2])
             elif len(token) == 1:
                 if token[0] in boolean_counter:
                     boolean_counter[token[0]] += 1
@@ -68,10 +106,11 @@ def tokenize(filename):
                     assembly = arithmetic_command(token[0], 0) 
             for line in assembly:
                 f.write(line + '\n')
+        f.write('(END)\n@END\n0;JMP\n')
 
 
 #def write_assembly(tokens):
 #    for token in tokens:
 #        assert (len(token) == 1 or len(token) == 3)
 
-tokenize('SimpleAdd.vm')
+tokenize('StaticTest.vm')
