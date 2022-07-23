@@ -3,6 +3,15 @@ segment_mapping = {
     'temp': '5', 'pointer': ['THIS', 'THAT']
 }
 
+def handle_branching(arg1, arg2):
+    if arg1 == 'label':
+        return ['(' + str(arg2) + ')']
+    elif arg1 == 'goto':
+        return ['@' + str(arg2), '0;JMP']
+    elif arg1 == 'if-goto':
+        return ['@SP', 'M=M-1', 'A=M', 'D=M', 
+                '@' + str(arg2), 'D;JNE']
+
 def push_variable(segment, address):
     if segment in ['local', 'argument', 'this', 'that']:
         return ['@' + str(address), 'D=A', '@' + segment_mapping[segment],
@@ -89,10 +98,18 @@ def tokenize(filename):
                         if line.strip()[:2] != '//' and line.strip()]
 
     tokens = [instruction.split() for instruction in instructions]
+    for i in range(len(tokens)):
+        try:
+            comment_index = tokens[i].index('//')
+        except ValueError as e:
+            comment_index = None
+        tokens[i] = tokens[i][:comment_index]
+        assert len(tokens[i]) <= 3
 
     filepath = '../examples/' + filename[:-3] + '.asm'
     with open(filepath, mode = 'w', encoding = "utf-8") as f:
         for token in tokens:
+            print(token)
             if len(token) == 3:
                 if token[0] == 'push':
                     assembly = push_variable(token[1], token[2])
@@ -103,7 +120,9 @@ def tokenize(filename):
                     boolean_counter[token[0]] += 1
                     assembly = arithmetic_command(token[0], boolean_counter[token[0]])
                 else:
-                    assembly = arithmetic_command(token[0], 0) 
+                    assembly = arithmetic_command(token[0], 0)
+            elif len(token) == 2:
+                assembly = handle_branching(token[0], token[1])
             for line in assembly:
                 f.write(line + '\n')
         f.write('(END)\n@END\n0;JMP\n')
@@ -113,4 +132,4 @@ def tokenize(filename):
 #    for token in tokens:
 #        assert (len(token) == 1 or len(token) == 3)
 
-tokenize('StaticTest.vm')
+tokenize('FibonacciSeries.vm')
